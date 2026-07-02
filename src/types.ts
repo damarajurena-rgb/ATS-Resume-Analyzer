@@ -4,6 +4,9 @@ export interface AnalysisResult {
   missingKeywords: string[];
   suggestions: string[];
   summary: string;
+  strengths: string[];
+  weaknesses: string[];
+  improvedResume: string;
 }
 
 export interface AnalysisHistoryItem {

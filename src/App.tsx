@@ -10,7 +10,11 @@ import {
   Download, 
   Info, 
   Cpu,
-  BookmarkCheck
+  BookmarkCheck,
+  ThumbsUp,
+  AlertTriangle,
+  ArrowRightLeft,
+  CheckCircle2
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 
@@ -37,6 +41,8 @@ export default function App() {
 
   // Copy/export feedback states
   const [copiedSummary, setCopiedSummary] = useState(false);
+  const [copiedImproved, setCopiedImproved] = useState(false);
+  const [isCompareMode, setIsCompareMode] = useState(true);
   
   // Local storage history
   const [history, setHistory] = useState<AnalysisHistoryItem[]>([]);
@@ -191,6 +197,28 @@ export default function App() {
     navigator.clipboard.writeText(result.summary);
     setCopiedSummary(true);
     setTimeout(() => setCopiedSummary(false), 2000);
+  };
+
+  // Copy improved resume text to clipboard
+  const handleCopyImproved = () => {
+    if (!result) return;
+    navigator.clipboard.writeText(result.improvedResume || "");
+    setCopiedImproved(true);
+    setTimeout(() => setCopiedImproved(false), 2000);
+  };
+
+  // Download improved resume as plain text file
+  const handleDownloadImproved = () => {
+    if (!result) return;
+    const blob = new Blob([result.improvedResume || ""], { type: "text/plain;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `ATS_Optimized_Resume.txt`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
   };
 
   // Download simple text report
@@ -520,6 +548,135 @@ Generated via ATS Resume Analyzer on ${new Date().toLocaleDateString()}
               <SuggestionsList 
                 suggestions={result.suggestions}
               />
+
+              {/* Strengths & Weaknesses Section */}
+              {((result.strengths && result.strengths.length > 0) || (result.weaknesses && result.weaknesses.length > 0)) && (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {/* Strengths */}
+                  <div className="bg-white/80 backdrop-blur-xl border border-white/40 rounded-2xl p-6 shadow-xl shadow-slate-900/10">
+                    <div className="flex items-center gap-2 mb-4 border-b border-slate-100 pb-3">
+                      <span className="p-1.5 bg-emerald-50 text-emerald-600 rounded-lg shadow-sm">
+                        <ThumbsUp className="h-4.5 w-4.5" />
+                      </span>
+                      <h3 className="font-extrabold text-slate-900 text-sm">Resume Strengths</h3>
+                    </div>
+                    <ul className="space-y-3">
+                      {(result.strengths || []).map((strength, index) => (
+                        <li key={index} className="flex items-start gap-2.5 text-sm text-slate-700">
+                          <CheckCircle2 className="h-5 w-5 text-emerald-500 mt-0.5 flex-shrink-0" />
+                          <span className="font-medium leading-relaxed">{strength}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+
+                  {/* Weaknesses / Areas to Improve */}
+                  <div className="bg-white/80 backdrop-blur-xl border border-white/40 rounded-2xl p-6 shadow-xl shadow-slate-900/10">
+                    <div className="flex items-center gap-2 mb-4 border-b border-slate-100 pb-3">
+                      <span className="p-1.5 bg-amber-50 text-amber-600 rounded-lg shadow-sm">
+                        <AlertTriangle className="h-4.5 w-4.5" />
+                      </span>
+                      <h3 className="font-extrabold text-slate-900 text-sm">Areas to Improve</h3>
+                    </div>
+                    <ul className="space-y-3">
+                      {(result.weaknesses || []).map((weakness, index) => (
+                        <li key={index} className="flex items-start gap-2.5 text-sm text-slate-700">
+                          <AlertTriangle className="h-5 w-5 text-amber-500 mt-0.5 flex-shrink-0" />
+                          <span className="font-medium leading-relaxed">{weakness}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                </div>
+              )}
+
+              {/* Improved Resume Draft Section */}
+              {result.improvedResume && (
+                <div className="bg-white/80 backdrop-blur-xl border border-white/40 rounded-2xl p-6 shadow-xl shadow-slate-900/10 space-y-4">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-100 pb-4">
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="p-1.5 bg-indigo-50 text-indigo-600 rounded-lg shadow-sm">
+                          <Sparkles className="h-4.5 w-4.5" />
+                        </span>
+                        <h3 className="font-extrabold text-slate-900 text-base">AI-Optimized Resume Draft</h3>
+                      </div>
+                      <p className="text-[11px] text-slate-500 mt-1 font-medium">
+                        Review or compare the AI-rewritten version with your original resume text.
+                      </p>
+                    </div>
+
+                    {/* Controls & Actions Toolbar */}
+                    <div className="flex flex-wrap items-center gap-2.5">
+                      {/* View Toggle */}
+                      <button
+                        onClick={() => setIsCompareMode(!isCompareMode)}
+                        className="px-3 py-1.5 hover:bg-slate-50 rounded-xl border border-slate-200 text-slate-700 flex items-center gap-1.5 text-xs font-extrabold transition-all cursor-pointer"
+                        title={isCompareMode ? "Show optimized resume only" : "Compare original vs improved"}
+                      >
+                        <ArrowRightLeft className="h-3.5 w-3.5 text-indigo-500" />
+                        <span>{isCompareMode ? "Optimized View" : "Compare View"}</span>
+                      </button>
+
+                      {/* Copy Action */}
+                      <button
+                        onClick={handleCopyImproved}
+                        className="px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100/80 rounded-xl border border-indigo-100/50 text-indigo-700 flex items-center gap-1.5 text-xs font-extrabold transition-all cursor-pointer"
+                        title="Copy improved resume"
+                      >
+                        {copiedImproved ? <Check className="h-3.5 w-3.5 text-emerald-600" /> : <Copy className="h-3.5 w-3.5" />}
+                        <span>{copiedImproved ? "Copied!" : "Copy"}</span>
+                      </button>
+
+                      {/* Download Action */}
+                      <button
+                        onClick={handleDownloadImproved}
+                        className="px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-extrabold transition-all flex items-center gap-1.5 cursor-pointer"
+                        title="Download improved resume as TXT"
+                      >
+                        <Download className="h-3.5 w-3.5" />
+                        <span>Download .txt</span>
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Resume display block */}
+                  {isCompareMode ? (
+                    /* Side-by-side on desktop, stacked on mobile */
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                      {/* Original Column */}
+                      <div className="flex flex-col space-y-2">
+                        <div className="flex items-center justify-between">
+                          <span className="text-[11px] uppercase tracking-widest font-extrabold text-slate-400 bg-slate-100 px-2 py-0.5 rounded">Original Resume</span>
+                        </div>
+                        <div className="border border-slate-200/80 bg-slate-50/50 rounded-xl p-4.5 h-[500px] overflow-y-auto text-slate-700 text-xs font-mono whitespace-pre-wrap leading-relaxed shadow-inner">
+                          {resumeText || "No original resume text available."}
+                        </div>
+                      </div>
+
+                      {/* Improved Column */}
+                      <div className="flex flex-col space-y-2">
+                        <div className="flex items-center justify-between">
+                          <span className="text-[11px] uppercase tracking-widest font-extrabold text-indigo-500 bg-indigo-50 px-2 py-0.5 rounded">AI-Improved Resume</span>
+                        </div>
+                        <div className="border border-indigo-100 bg-indigo-50/20 rounded-xl p-4.5 h-[500px] overflow-y-auto text-slate-800 text-xs font-mono whitespace-pre-wrap leading-relaxed shadow-inner">
+                          {result.improvedResume}
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    /* Full-width Single View */
+                    <div className="flex flex-col space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[11px] uppercase tracking-widest font-extrabold text-indigo-500 bg-indigo-50 px-2 py-0.5 rounded">AI-Improved Resume (Full Width)</span>
+                      </div>
+                      <div className="border border-indigo-100 bg-indigo-50/20 rounded-xl p-6 min-h-[400px] max-h-[600px] overflow-y-auto text-slate-800 text-sm font-sans whitespace-pre-wrap leading-relaxed shadow-inner">
+                        {result.improvedResume}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
             </motion.div>
           )}
         </div>

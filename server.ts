@@ -45,7 +45,16 @@ Job Description:
 ${jobDescription}
 """
 
-Generate an objective ATS analysis response matching the exact schema specified. Keep matching and missing keywords highly accurate to the text provided. Recommendations should be clear, professional, and actionable.`;
+Generate an objective ATS analysis response matching the exact schema specified. 
+Keep matching and missing keywords highly accurate to the text provided. 
+Recommendations should be clear, professional, and actionable.
+
+For the improved resume ("improvedResume"):
+1. Fully rewrite and improve the user's resume text.
+2. Keep the user's real experience, company names, dates of employment, and education truthful and unchanged.
+3. Strengthen weak bullet points with powerful action verbs and suggest quantifiable impact metrics where reasonable.
+4. Naturally incorporate missing keywords from the job description where they genuinely fit.
+5. Use a clean, standard, ATS-friendly plain text format with clear section headers (Summary, Experience, Skills, Education). No tables, no graphics, no columns.`;
 
     const response = await ai.models.generateContent({
       model: "gemini-3.5-flash",
@@ -78,8 +87,31 @@ Generate an objective ATS analysis response matching the exact schema specified.
               type: Type.STRING,
               description: "A 2 to 3 sentence professional overall assessment.",
             },
+            strengths: {
+              type: Type.ARRAY,
+              items: { type: Type.STRING },
+              description: "3 to 5 specific things the resume does well (e.g. strong action verbs, quantified achievements, relevant experience).",
+            },
+            weaknesses: {
+              type: Type.ARRAY,
+              items: { type: Type.STRING },
+              description: "3 to 5 specific gaps, weaknesses, or formatting issues (e.g. missing metrics, generic phrasing, missing key requirements).",
+            },
+            improvedResume: {
+              type: Type.STRING,
+              description: "A fully rewritten, optimized, ATS-friendly plain text version of the resume incorporating missing keywords and better phrasing while maintaining real facts.",
+            },
           },
-          required: ["matchScore", "matchedKeywords", "missingKeywords", "suggestions", "summary"],
+          required: [
+            "matchScore", 
+            "matchedKeywords", 
+            "missingKeywords", 
+            "suggestions", 
+            "summary",
+            "strengths",
+            "weaknesses",
+            "improvedResume"
+          ],
         }
       }
     });
