@@ -1,0 +1,6 @@
+{
+  "name": "ATS Resume Analyzer",
+  "description": "Analyze how well a resume matches a job description, receiving a match score, keyword comparison, and actionable improvement suggestions.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
