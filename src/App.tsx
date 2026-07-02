@@ -48,6 +48,38 @@ export default function App() {
   const [candidateName, setCandidateName] = useState("");
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
   
+  // Dynamic progressive loader states
+  const [loadingStepIndex, setLoadingStepIndex] = useState(0);
+  const [loadingSeconds, setLoadingSeconds] = useState(0);
+
+  const LOADING_STEPS = [
+    "Reading resume...",
+    "Comparing with job description...",
+    "Calculating match score...",
+    "Generating improved resume..."
+  ];
+
+  useEffect(() => {
+    if (!isAnalyzing) {
+      setLoadingStepIndex(0);
+      setLoadingSeconds(0);
+      return;
+    }
+
+    const stepInterval = setInterval(() => {
+      setLoadingStepIndex((prev) => (prev + 1) % LOADING_STEPS.length);
+    }, 3000); // Cycle status text every 3 seconds
+
+    const secondsInterval = setInterval(() => {
+      setLoadingSeconds((prev) => prev + 1);
+    }, 1000); // Track elapsed time
+
+    return () => {
+      clearInterval(stepInterval);
+      clearInterval(secondsInterval);
+    };
+  }, [isAnalyzing]);
+  
   // Local storage history
   const [history, setHistory] = useState<AnalysisHistoryItem[]>([]);
 
@@ -107,6 +139,13 @@ export default function App() {
 
     setIsAnalyzing(true);
     setResult(null);
+    setLoadingStepIndex(0);
+    setLoadingSeconds(0);
+
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => {
+      controller.abort();
+    }, 60000); // 60 seconds timeout
 
     try {
       const response = await fetch("/api/analyze", {
@@ -118,7 +157,10 @@ export default function App() {
           resumeText,
           jobDescription,
         }),
+        signal: controller.signal
       });
+
+      clearTimeout(timeoutId);
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
@@ -159,9 +201,14 @@ export default function App() {
 
     } catch (err: any) {
       console.error(err);
-      setErrorMsg(err.message || "An unexpected error occurred. Please try again.");
+      if (err.name === 'AbortError' || err.message?.toLowerCase().includes("abort") || err.message?.toLowerCase().includes("timeout")) {
+        setErrorMsg("Analysis timed out (60 seconds exceeded). The model is taking longer than usual or the content is extremely large. Please try again.");
+      } else {
+        setErrorMsg(err.message || "An unexpected error occurred. Please try again.");
+      }
     } finally {
       setIsAnalyzing(false);
+      clearTimeout(timeoutId);
     }
   };
 
@@ -548,13 +595,22 @@ Generated via ATS Resume Analyzer on ${new Date().toLocaleDateString()}
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
-              className="mb-8 p-4.5 bg-rose-500/10 backdrop-blur-xl border border-rose-500/30 text-rose-200 rounded-2xl flex items-start gap-3 shadow-lg shadow-rose-950/10"
+              className="mb-8 p-4.5 bg-rose-500/10 backdrop-blur-xl border border-rose-500/30 text-rose-200 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-lg shadow-rose-950/10"
             >
-              <AlertCircle className="h-5 w-5 mt-0.5 text-rose-400 flex-shrink-0" />
-              <div>
-                <p className="font-bold text-sm">An Error Occurred</p>
-                <p className="text-xs text-rose-300/90 mt-0.5">{errorMsg}</p>
+              <div className="flex items-start gap-3">
+                <AlertCircle className="h-5 w-5 mt-0.5 text-rose-400 flex-shrink-0" />
+                <div>
+                  <p className="font-bold text-sm">An Error Occurred</p>
+                  <p className="text-xs text-rose-300/90 mt-0.5">{errorMsg}</p>
+                </div>
               </div>
+              <button
+                onClick={handleAnalyze}
+                className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 active:bg-indigo-700 text-white rounded-xl text-xs font-extrabold shadow-md shadow-indigo-500/10 transition-all flex items-center gap-1.5 self-start sm:self-center shrink-0 cursor-pointer"
+              >
+                <RefreshCcw className="h-3.5 w-3.5 animate-pulse" />
+                <span>Try Again</span>
+              </button>
             </motion.div>
           )}
         </AnimatePresence>
@@ -665,9 +721,17 @@ Generated via ATS Resume Analyzer on ${new Date().toLocaleDateString()}
               We are parsing your resume text and job description matching structural keyword requirements.
             </p>
             
-            <div className="flex items-center gap-2 bg-indigo-50 px-3.5 py-1.5 rounded-full border border-indigo-100/50 text-indigo-700 font-bold text-xs">
-              <span className="w-1.5 h-1.5 rounded-full bg-indigo-500 animate-ping" />
-              <span>Matching core qualifications...</span>
+            <div className="flex flex-col items-center gap-3 w-full">
+              <div className="flex items-center gap-2 bg-indigo-50 px-4 py-2 rounded-full border border-indigo-100/50 text-indigo-700 font-bold text-xs shadow-sm">
+                <span className="w-1.5 h-1.5 rounded-full bg-indigo-500 animate-ping" />
+                <span>{LOADING_STEPS[loadingStepIndex]}</span>
+              </div>
+              
+              {loadingSeconds > 30 && (
+                <p className="text-xs text-amber-700 font-extrabold bg-amber-50 border border-amber-200/60 rounded-xl px-4 py-2.5 mt-2 max-w-sm leading-normal shadow-sm animate-pulse">
+                  ⚠️ This may take a bit longer for detailed resumes — hang tight.
+                </p>
+              )}
             </div>
           </div>
         )}

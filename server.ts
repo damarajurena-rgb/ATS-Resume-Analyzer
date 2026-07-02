@@ -11,15 +11,26 @@ const PORT = 3000;
 
 app.use(express.json());
 
-// Initialize Gemini SDK with telemetry User-Agent
-const ai = new GoogleGenAI({
-  apiKey: process.env.GEMINI_API_KEY,
-  httpOptions: {
-    headers: {
-      'User-Agent': 'aistudio-build',
+// Lazy-initialized Gemini SDK client with key verification
+let aiClient: GoogleGenAI | null = null;
+
+function getAI(): GoogleGenAI {
+  if (!aiClient) {
+    const key = process.env.GEMINI_API_KEY;
+    if (!key) {
+      throw new Error("GEMINI_API_KEY environment variable is required. Please set it in your Settings menu.");
     }
+    aiClient = new GoogleGenAI({
+      apiKey: key,
+      httpOptions: {
+        headers: {
+          'User-Agent': 'aistudio-build',
+        }
+      }
+    });
   }
-});
+  return aiClient;
+}
 
 // API endpoint for ATS Resume Analysis
 app.post("/api/analyze", async (req, res) => {
@@ -58,7 +69,7 @@ For the improved resume ("improvedResume"):
 6. If a skill, keyword, or requirement from the job description is missing, it should appear in "missingKeywords" and "suggestions" only. It MUST NOT be silently added to the improved resume's body, content, or skills list.
 7. Use a clean, standard, ATS-friendly plain text format with clear section headers (Summary, Experience, Skills, Education). No tables, no graphics, no columns.`;
 
-    const response = await ai.models.generateContent({
+    const response = await getAI().models.generateContent({
       model: "gemini-3.5-flash",
       contents: prompt,
       config: {
