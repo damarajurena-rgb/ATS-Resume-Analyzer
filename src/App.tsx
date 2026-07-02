@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import { jsPDF } from "jspdf";
 import { 
   FileText, 
   Briefcase, 
@@ -14,7 +15,8 @@ import {
   ThumbsUp,
   AlertTriangle,
   ArrowRightLeft,
-  CheckCircle2
+  CheckCircle2,
+  Loader2
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 
@@ -43,6 +45,8 @@ export default function App() {
   const [copiedSummary, setCopiedSummary] = useState(false);
   const [copiedImproved, setCopiedImproved] = useState(false);
   const [isCompareMode, setIsCompareMode] = useState(true);
+  const [candidateName, setCandidateName] = useState("");
+  const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
   
   // Local storage history
   const [history, setHistory] = useState<AnalysisHistoryItem[]>([]);
@@ -219,6 +223,198 @@ export default function App() {
     link.click();
     document.body.removeChild(link);
     URL.revokeObjectURL(url);
+  };
+
+  // Generate and download professional PDF of the improved resume
+  const handleDownloadPdf = async () => {
+    if (!result || !result.improvedResume) return;
+    
+    setIsGeneratingPdf(true);
+
+    // Give a short timeout for the loading indicator to render nicely and give good UX
+    setTimeout(() => {
+      try {
+        const doc = new jsPDF({
+          orientation: "portrait",
+          unit: "pt",
+          format: "letter"
+        });
+
+        const pageWidth = 612; // Letter width in pt
+        const pageHeight = 792; // Letter height in pt
+        const margin = 54; // 0.75 inch margin
+        const contentWidth = pageWidth - (margin * 2);
+        
+        let y = margin;
+        let hasRenderedName = false;
+        let hasFirstSectionHeader = false;
+
+        // Clean up text and split into lines
+        const rawLines = result.improvedResume.split(/\r?\n/);
+        const headerKeywords = [
+          "SUMMARY", "PROFESSIONAL SUMMARY", "EXPERIENCE", "WORK EXPERIENCE", 
+          "PROFESSIONAL EXPERIENCE", "SKILLS", "EDUCATION", "PROJECTS", 
+          "CERTIFICATIONS", "LANGUAGES", "AWARDS", "RELEVANT EXPERIENCE", "STRENGTHS"
+        ];
+
+        // Process line by line
+        for (let i = 0; i < rawLines.length; i++) {
+          const line = rawLines[i];
+          const trimmed = line.trim();
+          
+          if (!trimmed) {
+            // Empty line: add a little breathing space, but not too much if we are near bottom
+            if (y < pageHeight - margin - 20) {
+              y += 8;
+            }
+            continue;
+          }
+
+          // Check if this line is a section header
+          const upperLine = trimmed.toUpperCase().replace(/[\*\#]/g, ""); // Strip potential markdown
+          const isHeader = headerKeywords.some(keyword => upperLine === keyword || upperLine.startsWith(keyword + " "));
+
+          if (isHeader) {
+            hasFirstSectionHeader = true;
+            // Add top spacing before section header
+            if (y > margin) {
+              y += 14;
+            }
+            
+            // If y is too close to bottom, insert page break first
+            if (y > pageHeight - margin - 40) {
+              doc.addPage();
+              y = margin;
+            }
+
+            doc.setFont("helvetica", "bold");
+            doc.setFontSize(12.5);
+            doc.setTextColor(30, 41, 59); // Slate-800
+            
+            // Draw header text (clean of markdown)
+            const headerText = trimmed.replace(/\*/g, "");
+            doc.text(headerText, margin, y);
+            
+            // Draw a subtle, sleek line under header
+            y += 4;
+            doc.setDrawColor(203, 213, 225); // Slate-300
+            doc.setLineWidth(1);
+            doc.line(margin, y, margin + contentWidth, y);
+            
+            y += 12; // Spacing after header line
+            continue;
+          }
+
+          // If we haven't rendered the candidate's name yet, the first non-empty line is assumed to be the name
+          if (!hasRenderedName) {
+            hasRenderedName = true;
+            doc.setFont("helvetica", "bold");
+            doc.setFontSize(18);
+            doc.setTextColor(15, 23, 42); // Slate-900
+            
+            const nameText = trimmed.replace(/\*/g, "");
+            doc.text(nameText, pageWidth / 2, y, { align: "center" });
+            y += 20;
+            continue;
+          }
+
+          // If we are before the first section header, this is contact info
+          if (!hasFirstSectionHeader) {
+            doc.setFont("helvetica", "normal");
+            doc.setFontSize(9.5);
+            doc.setTextColor(71, 85, 105); // Slate-600
+            
+            const contactText = trimmed.replace(/\*/g, "");
+            doc.text(contactText, pageWidth / 2, y, { align: "center" });
+            y += 13;
+            continue;
+          }
+
+          // Regular lines (body content, bullet points, etc.)
+          doc.setTextColor(51, 65, 85); // Slate-700
+          
+          // Check if line is a bullet point
+          const isBullet = trimmed.startsWith("•") || trimmed.startsWith("-") || trimmed.startsWith("*") || trimmed.startsWith("o ");
+          
+          if (isBullet) {
+            // Strip the bullet symbol and leading spaces
+            const bulletText = trimmed.replace(/^[\•\-\*o]\s*/, "");
+            const bulletIndent = 12;
+            const textIndent = 24;
+            const bulletBodyWidth = contentWidth - textIndent;
+            
+            // Split to wrap text nicely
+            // Also strip markdown bold asterisks for clean text wrapping
+            const cleanBulletText = bulletText.replace(/\*\*/g, "");
+            const subLines = doc.splitTextToSize(cleanBulletText, bulletBodyWidth);
+            
+            doc.setFont("helvetica", "normal");
+            doc.setFontSize(10);
+            
+            subLines.forEach((subLine: string, index: number) => {
+              if (y > pageHeight - margin - 15) {
+                doc.addPage();
+                y = margin;
+              }
+              
+              if (index === 0) {
+                // Print bullet dot
+                doc.setFont("helvetica", "bold");
+                doc.text("•", margin + bulletIndent, y);
+                doc.setFont("helvetica", "normal");
+              }
+              
+              doc.text(subLine, margin + textIndent, y);
+              y += 14; // spacing
+            });
+          } else {
+            // Standard text line (or subheaders, e.g., Job Title | Company)
+            const cleanText = trimmed.replace(/\*\*/g, "");
+            const subLines = doc.splitTextToSize(cleanText, contentWidth);
+            
+            // If the line looks like a job title / subheader, make it slightly bolder or style it nicely
+            const isSubHeader = trimmed.includes("|") || (trimmed.length < 80 && (trimmed.includes("202") || trimmed.includes("201") || trimmed.includes("Present")));
+            
+            if (isSubHeader) {
+              doc.setFont("helvetica", "bold");
+              doc.setFontSize(10.5);
+              doc.setTextColor(15, 23, 42); // Slate-900
+            } else {
+              doc.setFont("helvetica", "normal");
+              doc.setFontSize(10);
+              doc.setTextColor(51, 65, 85); // Slate-700
+            }
+            
+            subLines.forEach((subLine: string) => {
+              if (y > pageHeight - margin - 15) {
+                doc.addPage();
+                y = margin;
+              }
+              doc.text(subLine, margin, y);
+              y += 14;
+            });
+          }
+        }
+
+        // Generate final file name
+        let filename = `Improved_Resume.pdf`;
+        if (candidateName.trim()) {
+          const sanitized = candidateName.trim()
+            .replace(/[^a-zA-Z0-9\s]/g, "")
+            .replace(/\s+/g, "_");
+          filename = `${sanitized}_Resume.pdf`;
+        } else {
+          const timestamp = new Date().toISOString().slice(0, 10).replace(/-/g, "");
+          filename = `Improved_Resume_${timestamp}.pdf`;
+        }
+
+        doc.save(filename);
+      } catch (e) {
+        console.error("Failed to generate PDF", e);
+      } finally {
+        setIsGeneratingPdf(false);
+      }
+    }, 600);
   };
 
   // Download simple text report
@@ -607,7 +803,19 @@ Generated via ATS Resume Analyzer on ${new Date().toLocaleDateString()}
                     </div>
 
                     {/* Controls & Actions Toolbar */}
-                    <div className="flex flex-wrap items-center gap-2.5">
+                    <div className="flex flex-wrap items-center gap-3.5">
+                      {/* Name input for PDF personalization */}
+                      <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5 w-full sm:w-auto">
+                        <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-400">Candidate:</span>
+                        <input
+                          type="text"
+                          placeholder="Enter name for PDF (e.g. Jane Doe)"
+                          value={candidateName}
+                          onChange={(e) => setCandidateName(e.target.value)}
+                          className="bg-transparent border-none text-xs font-semibold text-slate-700 focus:outline-none placeholder:text-slate-300 w-44"
+                        />
+                      </div>
+
                       {/* View Toggle */}
                       <button
                         onClick={() => setIsCompareMode(!isCompareMode)}
@@ -628,13 +836,28 @@ Generated via ATS Resume Analyzer on ${new Date().toLocaleDateString()}
                         <span>{copiedImproved ? "Copied!" : "Copy"}</span>
                       </button>
 
-                      {/* Download Action */}
+                      {/* Download PDF (Primary, Prominent Action) */}
+                      <button
+                        onClick={handleDownloadPdf}
+                        disabled={isGeneratingPdf}
+                        className="px-4 py-1.5 bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-400 text-white rounded-xl text-xs font-extrabold transition-all flex items-center gap-1.5 cursor-pointer shadow-md shadow-indigo-200/50 hover:shadow-indigo-300/50"
+                        title="Download improved resume as professionally formatted PDF"
+                      >
+                        {isGeneratingPdf ? (
+                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                        ) : (
+                          <Download className="h-3.5 w-3.5" />
+                        )}
+                        <span>{isGeneratingPdf ? "Generating PDF..." : "Download PDF"}</span>
+                      </button>
+
+                      {/* Download TXT Action (Secondary) */}
                       <button
                         onClick={handleDownloadImproved}
-                        className="px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-extrabold transition-all flex items-center gap-1.5 cursor-pointer"
+                        className="px-3 py-1.5 hover:bg-slate-50 rounded-xl border border-slate-200 text-slate-700 flex items-center gap-1.5 text-xs font-extrabold transition-all cursor-pointer"
                         title="Download improved resume as TXT"
                       >
-                        <Download className="h-3.5 w-3.5" />
+                        <FileText className="h-3.5 w-3.5 text-slate-500" />
                         <span>Download .txt</span>
                       </button>
                     </div>

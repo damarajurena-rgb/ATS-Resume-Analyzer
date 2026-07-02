@@ -50,11 +50,13 @@ Keep matching and missing keywords highly accurate to the text provided.
 Recommendations should be clear, professional, and actionable.
 
 For the improved resume ("improvedResume"):
-1. Fully rewrite and improve the user's resume text.
-2. Keep the user's real experience, company names, dates of employment, and education truthful and unchanged.
-3. Strengthen weak bullet points with powerful action verbs and suggest quantifiable impact metrics where reasonable.
-4. Naturally incorporate missing keywords from the job description where they genuinely fit.
-5. Use a clean, standard, ATS-friendly plain text format with clear section headers (Summary, Experience, Skills, Education). No tables, no graphics, no columns.`;
+1. Fully rewrite, rephrase, reorganize, and strengthen the language for elements genuinely present in the original resume text.
+2. CRITICAL CONSTRAINT: NEVER add any skills, tools, technologies, frameworks, methodologies, languages, or certifications that the candidate did not mention anywhere in their original resume text, even if they appear in the job description as missing keywords.
+3. CRITICAL CONSTRAINT: NEVER change or alter the candidate's actual job titles. Job titles must remain exactly as they are in the original resume.
+4. Keep the candidate's real experience, company names, dates of employment, and education 100% truthful, factual, and unchanged.
+5. CRITICAL VERIFICATION: Cross-check every number, percentage, metric, and named tool or technology in your rewritten output against the original resume text. If it does not appear verbatim or as a direct, clear paraphrase of something in the original, you MUST remove it or rewrite that bullet point without inventing metrics, numbers, or unmentioned technologies. Do not hallucinate or invent new metrics or numbers.
+6. If a skill, keyword, or requirement from the job description is missing, it should appear in "missingKeywords" and "suggestions" only. It MUST NOT be silently added to the improved resume's body, content, or skills list.
+7. Use a clean, standard, ATS-friendly plain text format with clear section headers (Summary, Experience, Skills, Education). No tables, no graphics, no columns.`;
 
     const response = await ai.models.generateContent({
       model: "gemini-3.5-flash",
@@ -99,7 +101,7 @@ For the improved resume ("improvedResume"):
             },
             improvedResume: {
               type: Type.STRING,
-              description: "A fully rewritten, optimized, ATS-friendly plain text version of the resume incorporating missing keywords and better phrasing while maintaining real facts.",
+              description: "A fully rewritten, optimized, ATS-friendly plain text version of the resume that rephrases and strengthens language ONLY for elements genuinely present in the original resume. It MUST NOT add any unmentioned skills, tools, job titles, metrics, percentages, or certifications, even if they are in the job description. Do not alter job titles. All numbers and technologies must be cross-checked and present in the original resume.",
             },
           },
           required: [
